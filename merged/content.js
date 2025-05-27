@@ -4,12 +4,19 @@
     let observer = null;
 
     const wordToSign = {
-        "hello": "https://www.freeiconspng.com/thumbs/yes-png/yes-check-mark-png-21.png",
-        "how": "https://www.freeiconspng.com/thumbs/yes-png/yes-check-mark-png-21.png",
-        "are": "https://www.freeiconspng.com/thumbs/yes-png/yes-check-mark-png-21.png",
-        "you": "https://wallpapers.com/images/hd/pointing-finger-gesture-isolated-lsrkwlzawxq3et5i.png",
-        "thank": "https://image.similarpng.com/file/similarpng/very-thumbnail/2020/12/Golden-Thanks--word-premium-vector-PNG.png"
-        // Add more mappings here
+        "daily routines": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/everyday.svg",
+        "hi": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/hello.svg",
+        "mom": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/mommy.svg",
+        "i'm enjoying": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/enjoy.svg",
+        "life": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/nature.svg",
+        "new zealand": "https://cdn.britannica.com/18/3018-050-9EB93A42/New-Zealand.jpg",
+        "countryside": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/country.svg",
+        "beautiful": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/beautiful.svg",
+        "six": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/number_6.svg",
+        "wake": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/wake_up.svg",
+        "o'clock": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/time.svg",
+        "morning": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/everyday.svg",
+        
     };
 
     function createOverlay() {
