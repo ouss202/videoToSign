@@ -1,27 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('start');
-  let enabled = false;
+  const btn      = document.getElementById('btn');
+  let   enabled  = false;
 
   btn.addEventListener('click', async () => {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const [tab] = await chrome.tabs.query({ active:true, currentWindow:true });
 
-      // 1. inject the content script exactly once
+      // inject content script exactly once
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files : ['content.js']
       });
 
-      // 2. toggle translation
+      // toggle translation
       await chrome.tabs.sendMessage(tab.id, {
-        type  : 'toggleTranslation',
+        type: 'toggleTranslation',
         action: enabled ? 'stop' : 'start'
       });
 
-      enabled = !enabled;
+      enabled      = !enabled;
       btn.textContent = enabled ? 'Stop' : 'Start';
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
       alert('Please refresh the YouTube tab and try again.');
     }
   });
