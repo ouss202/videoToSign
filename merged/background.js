@@ -49,7 +49,6 @@ const RAW_SIGNS = {
   "enjoying": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/enjoy.svg",
   "enjoy": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/enjoy.svg",
   "life": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/nature.svg",
-  "new zealand": "https://cdn.britannica.com/18/3018-050-9EB93A42/New-Zealand.jpg",
   "new": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/new.svg",
   "zealand": "https://cdn.britannica.com/18/3018-050-9EB93A42/New-Zealand.jpg",
   "countryside": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/country.svg",

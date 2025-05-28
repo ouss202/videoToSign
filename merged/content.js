@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------
-   Persistent content.js - Auto-reconnects and stays active
+   Debug content.js - Shows image loading status
 ------------------------------------------------------------------- */
 
 // Prevent multiple injections
@@ -18,7 +18,6 @@ if (window.__signTranslatorLoaded) {
 
   /* ───────── Service Worker Connection Management ───────── */
   function ensureConnection() {
-    // Test if background script is responsive
     chrome.runtime.sendMessage(
       { type: 'extensionStatus' },
       (response) => {
@@ -37,7 +36,7 @@ if (window.__signTranslatorLoaded) {
     if (!reconnectInterval) {
       reconnectInterval = setInterval(() => {
         ensureConnection();
-      }, 5000); // Check every 5 seconds
+      }, 5000);
     }
   }
 
@@ -50,7 +49,6 @@ if (window.__signTranslatorLoaded) {
 
   /* ───────── Auto-restart on page navigation ───────── */
   function handlePageChange() {
-    // Detect URL changes (for YouTube navigation)
     let currentUrl = window.location.href;
     
     const urlObserver = new MutationObserver(() => {
@@ -58,7 +56,6 @@ if (window.__signTranslatorLoaded) {
         currentUrl = window.location.href;
         console.log('Page navigation detected, restarting...');
         
-        // Small delay to let YouTube load
         setTimeout(() => {
           if (active) {
             stop();
@@ -74,11 +71,10 @@ if (window.__signTranslatorLoaded) {
     });
   }
 
-  /* ───────── Overlay helpers ───────── */
+  /* ───────── Overlay helpers with image loading debug ───────── */
   function ensureOverlay() {
     if (overlay && document.body.contains(overlay)) return;
     
-    // Remove any existing overlay
     const existingOverlay = document.querySelector('#sign-translator-overlay');
     if (existingOverlay) existingOverlay.remove();
     
@@ -130,6 +126,8 @@ if (window.__signTranslatorLoaded) {
       transform: translateX(-50%);
       font-size: 10px;
       color: #666;
+      text-align: center;
+      max-width: 180px;
     `;
     overlay.appendChild(status);
     
@@ -144,9 +142,55 @@ if (window.__signTranslatorLoaded) {
     const img = overlay.querySelector('img');
     if (img) img.remove();
     
+    // Update status to show loading
+    const status = overlay.querySelector('#sign-status');
+    status.textContent = `Loading: ${alt}...`;
+    status.style.color = '#ff9800';
+    
+    console.log(`Attempting to load image for "${alt}":`, src);
+    
     const newImg = document.createElement('img');
-    newImg.src = src;
     newImg.alt = alt;
+    
+    // Debug image loading
+    newImg.onload = function() {
+      console.log(`✅ Image loaded successfully for "${alt}"`);
+      status.textContent = `Showing: ${alt}`;
+      status.style.color = '#34a853';
+    };
+    
+    newImg.onerror = function() {
+      console.error(`❌ Failed to load image for "${alt}":`, src);
+      
+      // Show error in overlay
+      newImg.remove();
+      const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = `
+        text-align: center;
+        color: #ea4335;
+        font-size: 12px;
+        padding: 10px;
+      `;
+      errorDiv.innerHTML = `
+        <div style="margin-bottom: 8px;">❌</div>
+        <div>Image failed to load</div>
+        <div style="font-size: 10px; margin-top: 4px;">"${alt}"</div>
+      `;
+      
+      overlay.insertBefore(errorDiv, status);
+      status.textContent = `Failed: ${alt}`;
+      status.style.color = '#ea4335';
+      
+      // Test if it's a CORS issue
+      fetch(src, { method: 'HEAD', mode: 'no-cors' })
+        .then(() => {
+          console.log(`URL exists but may have CORS issues: ${src}`);
+        })
+        .catch((e) => {
+          console.log(`URL completely inaccessible: ${src}`, e);
+        });
+    };
+    
     newImg.style.cssText = `
       max-width: 180px;
       max-height: 180px;
@@ -154,20 +198,16 @@ if (window.__signTranslatorLoaded) {
     `;
     
     // Insert before status div
-    const status = overlay.querySelector('#sign-status');
     overlay.insertBefore(newImg, status);
     
-    // Update status
-    status.textContent = `Showing: ${alt}`;
-    
-    console.log(`Displaying sign for: ${alt}`);
+    // Set src after event listeners are attached
+    newImg.src = src;
   }
 
   /* ───────── Caption observer with retry logic ───────── */
   function sendCaptionWithRetry(text, retries = 3) {
     const now = Date.now();
     
-    // Prevent spam (same caption within 1 second)
     if (now - lastCaptionTime < 1000) return;
     lastCaptionTime = now;
     
@@ -212,11 +252,10 @@ if (window.__signTranslatorLoaded) {
     ensureOverlay();
     ensureConnection();
     
-    // Notify background script
     chrome.runtime.sendMessage({ type: 'activateExtension' });
 
     const attach = () => {
-      if (!active) return; // Stop if deactivated
+      if (!active) return;
       
       const targets = [
         '.caption-window.ytp-caption-window-rollup',
@@ -246,7 +285,10 @@ if (window.__signTranslatorLoaded) {
         poll = null;
         
         const status = document.querySelector('#sign-status');
-        if (status) status.textContent = 'Connected to captions';
+        if (status) {
+          status.textContent = 'Connected to captions';
+          status.style.color = '#34a853';
+        }
         
         console.log('Observer attached to:', target);
       }
@@ -301,7 +343,6 @@ if (window.__signTranslatorLoaded) {
   /* ───────── Auto-start functionality ───────── */
   handlePageChange();
   
-  // Auto-start if this is a YouTube page
   if (window.location.hostname === 'www.youtube.com') {
     console.log('YouTube detected, auto-starting in 3 seconds...');
     setTimeout(() => {
