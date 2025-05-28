@@ -3,15 +3,87 @@
 <head>
   <title>Sign Translator</title>
   <style>
-    body { width:200px; padding:15px; font-family:Arial,sans-serif; }
-    #btn  { width:100%; padding:10px; border:none; border-radius:4px;
-            background:#4285f4; color:#fff; cursor:pointer; }
-    #btn:hover { background:#3367d6; }
+    body { 
+      width: 250px; 
+      padding: 15px; 
+      font-family: Arial, sans-serif; 
+      margin: 0;
+    }
+    
+    h3 { 
+      margin: 0 0 15px 0; 
+      color: #333; 
+      text-align: center;
+    }
+    
+    #btn  { 
+      width: 100%; 
+      padding: 12px; 
+      border: none; 
+      border-radius: 6px;
+      background: #4285f4; 
+      color: #fff; 
+      cursor: pointer; 
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+    
+    #btn:hover { 
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    #btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .info { 
+      font-size: 11px; 
+      color: #666; 
+      margin: 12px 0 0;
+      line-height: 1.4;
+    }
+    
+    .status {
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-top: 10px;
+      border-left: 3px solid #4285f4;
+    }
+    
+    .tip {
+      background: #e8f5e8;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-top: 8px;
+      border-left: 3px solid #34a853;
+    }
   </style>
 </head>
 <body>
-  <h3>Sign Translator</h3>
-  <button id="btn">Start</button>
+  <h3>🤟 Sign Translator</h3>
+  <button id="btn">Loading...</button>
+  
+  <div class="status">
+    Extension will stay active even when navigating between YouTube videos.
+  </div>
+  
+  <div class="tip">
+    💡 Enable YouTube captions first, then click Start!
+  </div>
+  
+  <div class="info">
+    • Works with any YouTube video<br>
+    • Shows sign language for recognized words<br>
+    • Click the X on overlay to stop
+  </div>
+  
   <script src="popup.js"></script>
 </body>
 </html>
