@@ -1,64 +1,41 @@
-// Dictionary to cache sign language images
+// Cache for word ⇒ imageUrl so we don't refetch the same sign
 const signCache = {};
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'newCaption') {
-    processCaption(request.text);
+// Handle captions arriving from the content script
+chrome.runtime.onMessage.addListener((req, sender) => {
+  if (req.type === 'newCaption') {
+    processCaption(req.text, sender.tab.id);
   }
 });
 
-async function processCaption(text) {
-  // Split into words and filter out empty strings
-  const words = text.split(/\s+/).filter(word => word.length > 0);
-  
-  // Get signs for each word
-  const signPromises = words.map(word => getSignForWord(word));
+// Split caption → fetch all sign images → send back to content script
+async function processCaption(text, tabId) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const signPromises = words.map(getSignForWord);
   const signs = await Promise.all(signPromises);
-  
-  // Send to content script
-  chrome.tabs.query({active: true, currentWindow: true}, tabs => {
-    if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        type: 'displaySign',
-        signs: signs
-      });
-    }
-  });
+
+  chrome.tabs.sendMessage(tabId, { type: 'displaySign', signs });
 }
 
+// Fetch/parse a single word (runs in the worker ▶ use DOMParser, no <div>)
 async function getSignForWord(word) {
-  // Clean word (remove punctuation)
-  const cleanWord = word.replace(/[^a-zA-Z']/g, '').toLowerCase();
-  
-  // Check cache first
-  if (signCache[cleanWord]) {
-    return signCache[cleanWord];
-  }
-  
+  const clean = word.replace(/[^a-zA-Z']/g, '').toLowerCase();
+  if (signCache[clean]) return signCache[clean];
+
   try {
-    // Fetch from wecapable.com (this is a simplified approach)
-    const response = await fetch(`https://wecapable.com/tools/text-to-sign-language-converter/?word=${encodeURIComponent(cleanWord)}`);
-    const html = await response.text();
-    
-    // Parse the HTML to extract sign image URL
-    // Note: This is a simplified approach. In reality, you might need an API
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    const signImg = tempDiv.querySelector('.sign-image img');
-    
-    const signData = {
-      word: cleanWord,
-      imageUrl: signImg ? signImg.src : null
-    };
-    
-    // Cache the result
-    signCache[cleanWord] = signData;
-    return signData;
-  } catch (error) {
-    console.error('Error fetching sign:', error);
-    return {
-      word: cleanWord,
-      imageUrl: null
-    };
+    const res  = await fetch(
+      `https://wecapable.com/tools/text-to-sign-language-converter/?word=${encodeURIComponent(clean)}`
+    );
+    const html = await res.text();
+    const doc  = new DOMParser().parseFromString(html, 'text/html');
+    const img  = doc.querySelector('.sign-image img');
+
+    return (signCache[clean] = {
+      word: clean,
+      imageUrl: img?.src || null
+    });
+  } catch (e) {
+    console.error('sign fetch failed:', e);
+    return { word: clean, imageUrl: null };
   }
 }
