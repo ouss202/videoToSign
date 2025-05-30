@@ -8,7 +8,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "*://*.youtube.com/*"
+    "*://*.youtube.com/*",
+    "*://wecapable.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

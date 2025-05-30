@@ -13,164 +13,237 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         let signInterval = null;
         const WORD_DISPLAY_DURATION = 1500; // 1.5 seconds per sign
         const imageCache = {}; // Cache for loaded images
+        let isTranslationActive = false;
 
-        // Sign Language Dictionary (with optimized image URLs)
+        // Sign Language Dictionary with better fallbacks
         const wordToSign = {
+            "daily": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/everyday.svg",
+            "routines": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/everyday.svg",
             "daily routines": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/everyday.svg",
             "hi": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/hello.svg",
+            "hello": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/hello.svg",
             "mom": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/mommy.svg",
-            "i'm enjoying": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/enjoy.svg",
+            "mother": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/mommy.svg",
+            "enjoying": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/enjoy.svg",
+            "enjoy": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/enjoy.svg",
             "life": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/nature.svg",
-            "new zealand": "https://cdn.britannica.com/18/3018-050-9EB93A42/New-Zealand.jpg",
+            "new": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/new.svg",
+            "new zealand": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/mommy.svg",
             "countryside": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/country.svg",
+            "country": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/country.svg",
             "beautiful": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/beautiful.svg",
             "six": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/number_6.svg",
+            "6": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/number_6.svg",
             "wake": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/wake_up.svg",
+            "up": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/wake_up.svg",
+            "wake up": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/wake_up.svg",
+            "time": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/time.svg",
             "o'clock": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/time.svg",
             "morning": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/everyday.svg",
             "go": "https://res.cloudinary.com/spiralyze/image/upload/f_auto,w_auto/BabySignLanguage/DictionaryPages/go.svg",
-            "run": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrey4cJMRQFQ7-VXw5DRpngyZ9qtmPZoAuzA&s"
+            "run": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrey4cJMRQFQ7-VXw5DRpngyZ9qtmPZoAuzA&s",
+            "running": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrey4cJMRQFQ7-VXw5DRpngyZ9qtmPZoAuzA&s"
         };
 
-        // Preload all sign images
+        // Preload images with error handling and retry logic
         function preloadImages() {
             console.log("Preloading sign images...");
-            Object.entries(wordToSign).forEach(([word, url]) => {
-                const img = new Image();
-                img.src = url;
-                imageCache[word] = img;
+            const loadPromises = Object.entries(wordToSign).map(([word, url]) => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous"; // Handle CORS issues
+                    
+                    img.onload = () => {
+                        imageCache[word] = { img, loaded: true, url };
+                        console.log(`✓ Loaded: ${word}`);
+                        resolve();
+                    };
+                    
+                    img.onerror = () => {
+                        console.warn(`✗ Failed to load: ${word} - ${url}`);
+                        imageCache[word] = { img: null, loaded: false, url };
+                        resolve(); // Don't block other images
+                    };
+                    
+                    img.src = url;
+                });
+            });
+            
+            Promise.all(loadPromises).then(() => {
+                console.log("Image preloading completed");
             });
         }
 
-        // Create the overlay container
+        // Create the overlay container with improved styling
         function createOverlay() {
             if (!overlay) {
                 overlay = document.createElement('div');
                 overlay.id = 'sign-overlay';
-                overlay.style.position = 'fixed';
-                overlay.style.bottom = '80px'; // Moved up to avoid YouTube controls
-                overlay.style.right = '20px';
-                overlay.style.width = '250px'; // Slightly larger
-                overlay.style.height = '250px';
-                overlay.style.backgroundColor = 'rgba(255,255,255,0.95)';
-                overlay.style.border = '2px solid #4285f4';
-                overlay.style.borderRadius = '12px';
-                overlay.style.zIndex = '10000'; // Higher than YouTube's UI
-                overlay.style.display = 'flex';
-                overlay.style.alignItems = 'center';
-                overlay.style.justifyContent = 'center';
-                overlay.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-                overlay.style.padding = '10px';
-                overlay.style.boxSizing = 'border-box';
-                overlay.style.fontFamily = 'Arial, sans-serif';
+                overlay.style.cssText = `
+                    position: fixed !important;
+                    bottom: 80px !important;
+                    right: 20px !important;
+                    width: 250px !important;
+                    height: 250px !important;
+                    background-color: rgba(255,255,255,0.95) !important;
+                    border: 2px solid #4285f4 !important;
+                    border-radius: 12px !important;
+                    z-index: 2147483647 !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+                    padding: 10px !important;
+                    box-sizing: border-box !important;
+                    font-family: Arial, sans-serif !important;
+                    pointer-events: none !important;
+                `;
                 document.body.appendChild(overlay);
             }
             return overlay;
         }
 
-        // Display a sign for a specific word
+        // Display a sign for a specific word with better error handling
         function renderSign(word) {
-            const lowerWord = word.toLowerCase();
-            if (!wordToSign[lowerWord]) return;
+            if (!isTranslationActive) return;
+            
+            const lowerWord = word.toLowerCase().trim();
+            const cached = imageCache[lowerWord];
+            
+            if (!cached || !wordToSign[lowerWord]) {
+                console.log(`No sign available for: "${word}"`);
+                return;
+            }
 
             const overlay = createOverlay();
-            const imgSrc = wordToSign[lowerWord];
-            const cachedImg = imageCache[lowerWord];
-
             overlay.innerHTML = '';
             
-            if (cachedImg && cachedImg.complete) {
+            if (cached.loaded && cached.img) {
                 const img = document.createElement('img');
-                img.src = imgSrc;
-                img.alt = word;
-                img.style.maxWidth = '100%';
-                img.style.maxHeight = '100%';
-                img.style.objectFit = 'contain';
+                img.src = cached.url;
+                img.alt = `Sign for ${word}`;
+                img.style.cssText = `
+                    max-width: 100% !important;
+                    max-height: 100% !important;
+                    object-fit: contain !important;
+                    display: block !important;
+                `;
                 overlay.appendChild(img);
+                console.log(`Displaying sign for: ${word}`);
             } else {
                 overlay.innerHTML = `
-                    <div style="text-align: center; padding: 10px;">
+                    <div style="text-align: center; padding: 10px; color: #333;">
                         <div style="font-weight: bold; margin-bottom: 5px;">${word}</div>
-                        <div style="color: #666;">Loading sign...</div>
+                        <div style="color: #666; font-size: 12px;">Sign not available</div>
                     </div>
                 `;
-                const img = new Image();
-                img.src = imgSrc;
-                img.onload = function() {
-                    overlay.innerHTML = '';
-                    const loadedImg = document.createElement('img');
-                    loadedImg.src = imgSrc;
-                    loadedImg.alt = word;
-                    loadedImg.style.maxWidth = '100%';
-                    loadedImg.style.maxHeight = '100%';
-                    loadedImg.style.objectFit = 'contain';
-                    overlay.appendChild(loadedImg);
-                };
             }
         }
 
-        // Process caption text into displayable words/phrases
+        // Improved caption processing with better word matching
         function processCaption(text) {
-            // Check for multi-word phrases first
-            const phrases = Object.keys(wordToSign)
-                .filter(phrase => phrase.includes(' ') && text.toLowerCase().includes(phrase));
+            if (!text || text.trim().length === 0) return [];
             
-            if (phrases.length > 0) {
-                return [phrases[0]]; // Return the first matching phrase
+            const normalizedText = text.toLowerCase().trim();
+            const foundWords = [];
+            
+            // Check for multi-word phrases first (longer phrases have priority)
+            const phrases = Object.keys(wordToSign)
+                .filter(phrase => phrase.includes(' '))
+                .sort((a, b) => b.length - a.length); // Sort by length, longest first
+            
+            for (const phrase of phrases) {
+                if (normalizedText.includes(phrase)) {
+                    foundWords.push(phrase);
+                    break; // Take the first (longest) matching phrase
+                }
             }
             
-            // Then process individual words
-            return text.split(/\s+/)
-                .filter(word => word.length > 0 && wordToSign[word.toLowerCase()]);
+            // If no phrases found, process individual words
+            if (foundWords.length === 0) {
+                const words = normalizedText.split(/\s+/)
+                    .map(word => word.replace(/[^\w']/g, '')) // Remove punctuation but keep apostrophes
+                    .filter(word => word.length > 0 && wordToSign[word]);
+                foundWords.push(...words);
+            }
+            
+            return foundWords.slice(0, 5); // Limit to 5 words to avoid overwhelming
         }
 
-        // Handle caption mutations
+        // Improved caption detection with debouncing
+        let captionTimeout = null;
         function handleCaptions(mutationsList) {
-            for (const mutation of mutationsList) {
-                const captionNode = Array.from(mutation.addedNodes).find(node => 
-                    node.nodeType === 1 && node.innerText
-                );
+            if (!isTranslationActive) return;
+            
+            // Clear previous timeout to debounce rapid caption changes
+            if (captionTimeout) {
+                clearTimeout(captionTimeout);
+            }
+            
+            captionTimeout = setTimeout(() => {
+                let latestCaption = '';
                 
-                if (captionNode) {
-                    const captionText = captionNode.innerText.trim();
-                    currentWords = processCaption(captionText);
+                // Find the most recent caption text
+                for (const mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        for (const node of mutation.addedNodes) {
+                            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                                latestCaption = node.textContent.trim();
+                            } else if (node.nodeType === Node.ELEMENT_NODE && node.innerText) {
+                                latestCaption = node.innerText.trim();
+                            }
+                        }
+                    } else if (mutation.type === 'characterData' && mutation.target.textContent.trim()) {
+                        latestCaption = mutation.target.textContent.trim();
+                    }
+                }
+                
+                if (latestCaption) {
+                    const wordsToShow = processCaption(latestCaption);
                     
-                    if (currentWords.length === 0) return;
+                    if (wordsToShow.length === 0) return;
                     
-                    console.log("Processing:", currentWords);
+                    console.log("Processing caption:", latestCaption, "-> Words:", wordsToShow);
                     
-                    // Clear previous interval
-                    if (signInterval) clearInterval(signInterval);
+                    // Clear previous display cycle
+                    if (signInterval) {
+                        clearInterval(signInterval);
+                        signInterval = null;
+                    }
+                    
+                    currentWords = wordsToShow;
+                    currentWordIndex = 0;
                     
                     // Show first word immediately
-                    currentWordIndex = 0;
                     renderSign(currentWords[currentWordIndex]);
                     currentWordIndex++;
                     
                     // Schedule remaining words
                     if (currentWords.length > 1) {
                         signInterval = setInterval(() => {
-                            if (currentWordIndex < currentWords.length) {
+                            if (currentWordIndex < currentWords.length && isTranslationActive) {
                                 renderSign(currentWords[currentWordIndex]);
                                 currentWordIndex++;
                             } else {
                                 clearInterval(signInterval);
+                                signInterval = null;
                             }
                         }, WORD_DISPLAY_DURATION);
                     }
-                    break;
                 }
-            }
+            }, 100); // 100ms debounce
         }
 
-        // Find the caption container with multiple fallback options
+        // Enhanced caption container detection
         function findCaptionContainer() {
             const selectors = [
-                '.ytp-caption-window-bottom', // New YouTube
-                '.caption-window.ytp-caption-window-rollup', // Old YouTube
-                'div.ytp-caption-window', // Alternative
-                'div.captions-text', // Fallback
-                'div[aria-live="polite"]' // Accessibility fallback
+                '.ytp-caption-window-bottom .ytp-caption-segment',
+                '.ytp-caption-window-bottom',
+                '.caption-window.ytp-caption-window-rollup',
+                'div.ytp-caption-window',
+                'div.captions-text',
+                'div[aria-live="polite"]',
+                '.ytp-caption-segment' // Additional selector
             ];
             
             for (const selector of selectors) {
@@ -180,17 +253,29 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
                     return element;
                 }
             }
-            console.warn("No caption container found with any selector");
+            
+            // Fallback: look for any element with caption-related classes
+            const fallbackElements = document.querySelectorAll('[class*="caption"], [class*="subtitle"]');
+            if (fallbackElements.length > 0) {
+                console.log("Found caption container using fallback");
+                return fallbackElements[0];
+            }
+            
+            console.warn("No caption container found");
             return null;
         }
 
-        // Initialize mutation observer with retry logic
+        // Initialize observer with better error handling
         function initObserver() {
+            if (!isTranslationActive) return;
+            
             const targetNode = findCaptionContainer();
             
             if (!targetNode) {
-                console.warn("Caption container not found - will retry");
-                setTimeout(initObserver, 1000); // Retry after 1 second
+                console.warn("Caption container not found - will retry in 2 seconds");
+                setTimeout(() => {
+                    if (isTranslationActive) initObserver();
+                }, 2000);
                 return;
             }
             
@@ -198,74 +283,100 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
                 observer.disconnect();
             }
             
-            observer = new MutationObserver(handleCaptions);
-            observer.observe(targetNode, { 
-                childList: true, 
-                subtree: true,
-                characterData: true
-            });
-            console.log("Caption observer successfully started");
+            try {
+                observer = new MutationObserver(handleCaptions);
+                observer.observe(targetNode, { 
+                    childList: true, 
+                    subtree: true,
+                    characterData: true,
+                    attributes: false // Reduce noise
+                });
+                console.log("Caption observer successfully started on:", targetNode.tagName, targetNode.className);
+            } catch (error) {
+                console.error("Failed to start observer:", error);
+                setTimeout(() => {
+                    if (isTranslationActive) initObserver();
+                }, 3000);
+            }
         }
 
-        // Message listener for popup communication
+        // Message listener with better error handling
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             console.log("Received message:", request);
             
-            if (request.type === 'ping') {
-                sendResponse({ready: true});
-                return true;
-            }
-
-            if (request.type === 'toggleTranslation') {
-                if (request.action === 'start') {
-                    if (!observer) {
-                        initObserver();
-                        console.log("Translation started via message");
-                    }
-                    sendResponse({success: true});
-                } else if (request.action === 'stop') {
-                    if (observer) {
-                        observer.disconnect();
-                        observer = null;
-                    }
-                    if (overlay) {
-                        overlay.remove();
-                        overlay = null;
-                    }
-                    if (signInterval) {
-                        clearInterval(signInterval);
-                        signInterval = null;
-                    }
-                    console.log("Translation stopped via message");
-                    sendResponse({success: true});
+            try {
+                if (request.type === 'ping') {
+                    sendResponse({ready: true});
+                    return true;
                 }
-                return true;
+
+                if (request.type === 'toggleTranslation') {
+                    if (request.action === 'start') {
+                        isTranslationActive = true;
+                        initObserver();
+                        console.log("Translation started");
+                        sendResponse({success: true});
+                    } else if (request.action === 'stop') {
+                        isTranslationActive = false;
+                        if (observer) {
+                            observer.disconnect();
+                            observer = null;
+                        }
+                        if (overlay && overlay.parentNode) {
+                            overlay.remove();
+                            overlay = null;
+                        }
+                        if (signInterval) {
+                            clearInterval(signInterval);
+                            signInterval = null;
+                        }
+                        console.log("Translation stopped");
+                        sendResponse({success: true});
+                    }
+                    return true;
+                }
+            } catch (error) {
+                console.error("Message handling error:", error);
+                sendResponse({success: false, error: error.message});
             }
+            
+            return true; // Keep message channel open
         });
 
-        // Initialize when injected
+        // Initialize
         preloadImages();
         
-        // Start with a slight delay to ensure YouTube is loaded
-        setTimeout(() => {
-            initObserver();
-            
-            // Additional check in case captions load after our initial check
-            const checkInterval = setInterval(() => {
-                if (!observer && findCaptionContainer()) {
-                    initObserver();
-                }
-            }, 2000);
-            
-            // Stop checking after 10 seconds
-            setTimeout(() => clearInterval(checkInterval), 10000);
-        }, 500);
+        // Don't auto-start - wait for user action
+        console.log("Sign Language Translator ready - waiting for user to start");
 
         // Cleanup when page unloads
         window.addEventListener('beforeunload', () => {
+            isTranslationActive = false;
             if (observer) observer.disconnect();
             if (signInterval) clearInterval(signInterval);
+            if (overlay && overlay.parentNode) overlay.remove();
         });
+
+        // Handle page navigation in YouTube (SPA)
+        let currentUrl = window.location.href;
+        const urlObserver = new MutationObserver(() => {
+            if (window.location.href !== currentUrl) {
+                currentUrl = window.location.href;
+                console.log("YouTube navigation detected, reinitializing...");
+                if (isTranslationActive) {
+                    setTimeout(() => {
+                        if (observer) observer.disconnect();
+                        initObserver();
+                    }, 1000);
+                }
+            }
+        });
+        
+        urlObserver.observe(document.body, { 
+            childList: true, 
+            subtree: true 
+        });
+
     })();
 } else {
     console.error("Chrome runtime API not available in this context");
