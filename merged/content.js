@@ -134,75 +134,55 @@ if (window.__signTranslatorLoaded) {
     document.body.appendChild(overlay);
     console.log('Overlay created and attached');
   }
+function clearError() {
+  if (!overlay) return;
+  const old = overlay.querySelector('.sign-error');
+  if (old) old.remove();
+}
 
   function show(src, alt) {
-    ensureOverlay();
-    
-    // Clear previous content but keep close button and status
-    const img = overlay.querySelector('img');
-    if (img) img.remove();
-    
-    // Update status to show loading
-    const status = overlay.querySelector('#sign-status');
-    status.textContent = `Loading: ${alt}...`;
-    status.style.color = '#ff9800';
-    
-    console.log(`Attempting to load image for "${alt}":`, src);
-    
-    const newImg = document.createElement('img');
-    newImg.alt = alt;
-    
-    // Debug image loading
-    newImg.onload = function() {
-      console.log(`✅ Image loaded successfully for "${alt}"`);
-      status.textContent = `Showing: ${alt}`;
-      status.style.color = '#34a853';
-    };
-    
-    newImg.onerror = function() {
-      console.error(`❌ Failed to load image for "${alt}":`, src);
-      
-      // Show error in overlay
-      newImg.remove();
-      const errorDiv = document.createElement('div');
-      errorDiv.style.cssText = `
-        text-align: center;
-        color: #ea4335;
-        font-size: 12px;
-        padding: 10px;
-      `;
-      errorDiv.innerHTML = `
-        <div style="margin-bottom: 8px;">❌</div>
-        <div>Image failed to load</div>
-        <div style="font-size: 10px; margin-top: 4px;">"${alt}"</div>
-      `;
-      
-      overlay.insertBefore(errorDiv, status);
-      status.textContent = `Failed: ${alt}`;
-      status.style.color = '#ea4335';
-      
-      // Test if it's a CORS issue
-      fetch(src, { method: 'HEAD', mode: 'no-cors' })
-        .then(() => {
-          console.log(`URL exists but may have CORS issues: ${src}`);
-        })
-        .catch((e) => {
-          console.log(`URL completely inaccessible: ${src}`, e);
-        });
-    };
-    
-    newImg.style.cssText = `
-      max-width: 180px;
-      max-height: 180px;
-      object-fit: contain;
+  ensureOverlay();
+
+  // ─── reset previous content ───
+  const imgPrev = overlay.querySelector('img');
+  if (imgPrev) imgPrev.remove();
+  clearError();                           // ✨ NEW
+
+  const status = overlay.querySelector('#sign-status');
+  status.textContent = `Loading: ${alt}…`;
+  status.style.color = '#ff9800';
+
+  const img = document.createElement('img');
+  img.alt = alt;
+  img.style.cssText = 'max-width:180px;max-height:180px;object-fit:contain';
+
+  img.onload = () => {
+    clearError();                         // ✨ remove any stale error
+    status.textContent = `Showing: ${alt}`;
+    status.style.color = '#34a853';
+  };
+
+  img.onerror = () => {
+    clearError();                         // ✨ make sure only one appears
+
+    const err = document.createElement('div');
+    err.className = 'sign-error';
+    err.style.cssText = `
+      text-align:center;
+      color:#ea4335;
+      font-size:12px;
+      padding:10px;
     `;
-    
-    // Insert before status div
-    overlay.insertBefore(newImg, status);
-    
-    // Set src after event listeners are attached
-    newImg.src = src;
-  }
+    err.innerHTML = `❌ Image failed<br><small>${alt}</small>`;
+    overlay.insertBefore(err, status);
+
+    status.textContent = `Failed: ${alt}`;
+    status.style.color = '#ea4335';
+  };
+
+  overlay.insertBefore(img, status);      // insert before the status line
+  img.src = src;                          // set src last
+}
 
   /* ───────── Caption observer with retry logic ───────── */
   function sendCaptionWithRetry(text, retries = 3) {
@@ -360,7 +340,7 @@ if (window.__signTranslatorLoaded) {
   }
 
   let idx = 0;
-  const speed = 400; // ms per word — make it faster here (try 200–400)
+  const speed = 200; // ms per word — make it faster here (try 200–400)
 
   function showNext() {
     const sign = uniqueSigns[idx];
