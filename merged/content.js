@@ -317,7 +317,7 @@ if (window.__signTranslatorLoaded) {
   }
 
   /* ───────── Message router ───────── */
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
       if (msg.type === 'toggleTranslation') {
         if (msg.action === 'start') {
@@ -328,17 +328,60 @@ if (window.__signTranslatorLoaded) {
         sendResponse({success: true});
         return;
       }
-      
+
       if (msg.type === 'displaySign' && active && msg.signs.length > 0) {
-        const signToShow = msg.signs[0];
-        show(signToShow.imageUrl, signToShow.word);
+        cycleSigns(msg.signs);
         sendResponse({success: true});
+        return;
       }
     } catch (error) {
       console.error('Error in message handler:', error);
       sendResponse({success: false, error: error.message});
     }
   });
+
+  // Animation state
+  let currentAnim = null;
+
+  function cycleSigns(signs) {
+  if (currentAnim) {
+    clearTimeout(currentAnim);
+    currentAnim = null;
+  }
+
+  // Deduplicate by word only (shows the first image for each unique word)
+  const seen = new Set();
+  const uniqueSigns = [];
+  for (const s of signs) {
+    if (!seen.has(s.word)) {
+      uniqueSigns.push(s);
+      seen.add(s.word);
+    }
+  }
+
+  let idx = 0;
+  const speed = 400; // ms per word — make it faster here (try 200–400)
+
+  function showNext() {
+    const sign = uniqueSigns[idx];
+    if (sign && sign.imageUrl) {
+      show(sign.imageUrl, sign.word);
+    } else {
+      ensureOverlay();
+      const oldImg = overlay.querySelector('img');
+      if (oldImg) oldImg.remove();
+      const status = overlay.querySelector('#sign-status');
+      if (status) status.textContent = `No sign for: ${sign.word}`;
+    }
+    idx++;
+    if (idx < uniqueSigns.length) {
+      currentAnim = setTimeout(showNext, speed);
+    } else {
+      currentAnim = null;
+    }
+  }
+  showNext();
+}
 
   /* ───────── Auto-start functionality ───────── */
   handlePageChange();
