@@ -1,154 +1,94 @@
+// Simplified popup.js
 document.addEventListener('DOMContentLoaded', () => {
   const toggleButton = document.getElementById('start');
-  const statusDisplay = document.createElement('div');
-  statusDisplay.style.cssText = `
-    margin-top: 10px;
+  const statusDiv = document.createElement('div');
+  statusDiv.style.cssText = `
+    margin-top: 15px;
     font-size: 12px;
-    min-height: 40px;
-    color: #333;
     text-align: center;
+    color: #333;
+    min-height: 20px;
   `;
-  toggleButton.after(statusDisplay);
+  toggleButton.after(statusDiv);
 
   let isActive = false;
 
-  // Improved message sending with better error handling
-  async function sendMessageToContentScript(tabId, message, maxRetries = 3) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const response = await chrome.tabs.sendMessage(tabId, message);
-        return response;
-      } catch (error) {
-        console.log(`Attempt ${attempt} failed:`, error.message);
-        
-        if (error.message.includes('Receiving end does not exist')) {
-          if (attempt === maxRetries) {
-            return { ready: false, needsInjection: true };
-          }
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, 200));
-        } else {
-          throw error; // Re-throw other errors
-        }
-      }
-    }
-  }
-
-  // Inject content script with verification
-  async function injectContentScript(tabId) {
+  // Send message with retry
+  async function sendMessage(tabId, message) {
     try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ['content.js']
-      });
-      
-      // Wait for content script to initialize
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Verify injection worked
-      const pingResponse = await sendMessageToContentScript(tabId, { type: 'ping' }, 1);
-      return pingResponse?.ready === true;
+      return await chrome.tabs.sendMessage(tabId, message);
     } catch (error) {
-      console.error("Content script injection failed:", error);
-      return false;
+      if (error.message.includes('Receiving end does not exist')) {
+        // Inject content script and retry
+        await chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ['content.js']
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+        return await chrome.tabs.sendMessage(tabId, message);
+      }
+      throw error;
     }
   }
 
   toggleButton.addEventListener('click', async () => {
-    toggleButton.disabled = true; // Prevent multiple clicks
+    toggleButton.disabled = true;
     
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
-      if (!tab) {
-        statusDisplay.textContent = "❌ No active tab found";
-        return;
-      }
-
-      if (!tab.url.includes('youtube.com')) {
-        statusDisplay.textContent = "❌ Please open a YouTube video first";
+      if (!tab || !tab.url.includes('youtube.com')) {
+        statusDiv.textContent = "❌ Please open a YouTube video";
         return;
       }
 
       if (!isActive) {
-        statusDisplay.textContent = "🔄 Starting translation...";
+        statusDiv.textContent = "🔄 Starting...";
         
-        try {
-          // Check if content script is ready
-          let pingResponse = await sendMessageToContentScript(tab.id, { type: 'ping' });
-          
-          if (!pingResponse?.ready) {
-            statusDisplay.textContent = "🔄 Loading extension...";
-            const injectionSuccess = await injectContentScript(tab.id);
-            
-            if (!injectionSuccess) {
-              statusDisplay.textContent = "❌ Failed to load - try refreshing the page";
-              return;
-            }
-          }
+        const response = await sendMessage(tab.id, {
+          type: 'toggleTranslation',
+          action: 'start'
+        });
 
-          // Start translation
-          statusDisplay.textContent = "🔄 Activating translation...";
-          const startResponse = await sendMessageToContentScript(tab.id, {
-            type: 'toggleTranslation',
-            action: 'start'
-          });
-
-          if (startResponse?.success) {
-            isActive = true;
-            toggleButton.textContent = "Stop Translation";
-            toggleButton.style.backgroundColor = "#d93025"; // Red for stop
-            statusDisplay.textContent = "✅ Translation active - watching captions";
-          } else {
-            statusDisplay.textContent = "❌ Failed to start translation";
-          }
-        } catch (error) {
-          console.error("Start error:", error);
-          statusDisplay.textContent = "❌ Error starting - try refreshing the page";
+        if (response?.success) {
+          isActive = true;
+          toggleButton.textContent = "Stop Translation";
+          toggleButton.style.backgroundColor = "#d93025";
+          statusDiv.textContent = "✅ Translation active";
+        } else {
+          statusDiv.textContent = "❌ Failed to start";
         }
       } else {
-        statusDisplay.textContent = "🔄 Stopping translation...";
+        statusDiv.textContent = "🔄 Stopping...";
         
-        try {
-          await sendMessageToContentScript(tab.id, {
-            type: 'toggleTranslation',
-            action: 'stop'
-          });
-          
-          isActive = false;
-          toggleButton.textContent = "Start Translation";
-          toggleButton.style.backgroundColor = "#4285f4"; // Blue for start
-          statusDisplay.textContent = "✅ Ready to translate";
-        } catch (error) {
-          console.error("Stop error:", error);
-          statusDisplay.textContent = "❌ Error stopping translation";
-        }
+        await sendMessage(tab.id, {
+          type: 'toggleTranslation',
+          action: 'stop'
+        });
+        
+        isActive = false;
+        toggleButton.textContent = "Start Translation";
+        toggleButton.style.backgroundColor = "#4285f4";
+        statusDiv.textContent = "✅ Ready";
       }
     } catch (error) {
-      console.error("General error:", error);
-      statusDisplay.textContent = "❌ Unexpected error occurred";
+      console.error("Error:", error);
+      statusDiv.textContent = "❌ Error - try refreshing page";
+      isActive = false;
       toggleButton.textContent = "Start Translation";
       toggleButton.style.backgroundColor = "#4285f4";
-      isActive = false;
     } finally {
-      toggleButton.disabled = false; // Re-enable button
+      toggleButton.disabled = false;
     }
   });
 
   // Check initial state
-  async function checkInitialState() {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
-      if (tab && tab.url.includes('youtube.com')) {
-        statusDisplay.textContent = "✅ Ready to translate YouTube captions";
-      } else {
-        statusDisplay.textContent = "ℹ️ Open a YouTube video to start";
-      }
-    } catch (error) {
-      statusDisplay.textContent = "ℹ️ Ready to translate";
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    if (tab && tab.url.includes('youtube.com')) {
+      statusDiv.textContent = "✅ Ready for YouTube";
+    } else {
+      statusDiv.textContent = "ℹ️ Open YouTube first";
     }
-  }
-
-  checkInitialState();
+  });
 });
